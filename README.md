@@ -16,7 +16,13 @@
   <img src="https://img.shields.io/badge/dependencies-0-orange" alt="zero dependencies">
 </p>
 
+<p align="center">
+  <b>English</b> · <a href="#中文文档">中文</a>
+</p>
+
 <br>
+
+---
 
 ## 📸 Preview
 
@@ -35,45 +41,46 @@
 - **🧭 Real-time vehicle positions** on a Leaflet / OpenStreetMap base map — bus icons plotted at live WGS-84 coordinates
 - **📏 Stops remaining** for each approaching bus — `17 - currentOrder = "still 4 stops"`
 - **⏰ ETA to your stop** — minutes + wall-clock estimate for every bus heading your way
-- **🚍 Back-queue list** — ordered by arrival time, cars that already passed greyed out
-- **🟢🟡🔴 Crowdedness** — `crowd` (comfortable), `mid` (moderate), `riders-packed` (tight) — sourced from operator's live telemetry
+- **🚍 Back-queue list** — ordered by arrival time; cars that already passed are greyed out
+- **🟢🟡🔴 Crowdedness** — live telemetry from the operator (comfortable / moderate / tight)
 - **🗺️ Route polyline** — the full bus trajectory drawn on the map
-- **🔧 Zero config** — ships with a demo route (Shenzhen Line 1 → Donghu Pedestrian Bridge). Just run and open browser
+- **🔧 Zero config** — ships with a demo route. Just run and open browser
 - **🔐 No registration, no API key, no account** — data sourced via reverse-engineered public transit API
 - **📦 Zero NPM dependencies** — pure Node.js (native modules only)
+- **📱 Click to interact** — tap a bus card or map icon to fly to the vehicle and view its details
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────┐     GET /api/line?cfg=...      ┌──────────────────┐
-│  Browser     │ ←────────────────────────────      │  bus-live Server │
-│  (Leaflet +  │     { line, stations, route,    │  (Node.js, no    │
-│   OSM)       │       buses[], fetchedAt }      │   deps)          │
-├──────────────┤                                  ├──────────────────┤
-│ Map display  │                                  │  /api/line (BFF) │
-│ Bus icons    │                                  │  Cache + poll    │
-│ Right panel  │                                  │  Static files    │
-└──────────────┘                                  └────────┬─────────┘
-                                                            │
-                                          ┌─────────────────┼─────────────────┐
-                                          │ chelaile.js      │ find.js         │
-                                          │ (reverse-eng.    │ (CLI search for │
-                                          │  Chelaile API)   │  lines & stops) │
-                                          └──────────────────┴─────────────────┘
-                                                            │
-                                             ┌──────────────┴──────────────┐
-                                             │  web.chelaile.net.cn API    │
-                                             │  (MD5 sign + AES-256-ECB)  │
-                                             └─────────────────────────────┘
+┌──────────────┐     GET /api/line              ┌──────────────────┐
+│  Browser     │ ←─────────────────────          │  bus-live Server │
+│  (Leaflet +  │     { line, stations, route,   │  (Node.js, no    │
+│   OSM)       │       buses[], fetchedAt }     │   deps)          │
+├──────────────┤                                 ├──────────────────┤
+│ Map display  │                                 │  /api/line (BFF) │
+│ Bus icons    │                                 │  Cache + poll    │
+│ Right panel  │                                 │  Static files    │
+└──────────────┘                                 └────────┬─────────┘
+                                                           │
+                                         ┌─────────────────┼─────────────────┐
+                                         │ chelaile.js      │ find.js         │
+                                         │ (reverse-eng.    │ (CLI search for │
+                                         │  Chelaile API)   │  lines & stops) │
+                                         └──────────────────┴─────────────────┘
+                                                           │
+                                            ┌──────────────┴──────────────┐
+                                            │  web.chelaile.net.cn API    │
+                                            │  (MD5 sign + AES-256-ECB)  │
+                                            └─────────────────────────────┘
 ```
 
 ### Data flow
 
 1. **Server** starts → immediately fetches line detail, real-time buses, and route polyline from the upstream; caches in memory
-2. Every **10 s** the server re-polls the upstream (configurable) — so your browser never hits the upstream directly
-3. **Browser** polls `/api/line` every **5 s**, gets the aggregated JSON, renders map layers and the side-panel cards
+2. Every **10 s** the server re-polls the upstream (configurable) — your browser never hits the upstream directly
+3. **Browser** polls `/api/line` every **5 s**, gets the aggregated JSON, renders map layers and side-panel cards
 4. On upstream failure the server serves the **last known good data** with a `stale: true` flag — no blank screen
 
 ---
@@ -152,11 +159,11 @@ All variables can be set in `.env` (excluded via `.gitignore`), as environment v
 
 ## Supported Cities
 
-The upstream (Chelaile) covers **477+ cities** across China, including but not limited to:
+The upstream (Chelaile) covers **477+ cities** across China:
 
-北京(027) · 上海(034) · 深圳(014) · 广州(053) · 成都(045) · 杭州(054) · 武汉(063) · 南京(049) · 重庆(076) · 西安(070) · 长沙(072) · 苏州(050) · 天津(093) · 郑州(073) · 东莞(055) · 青岛(060) · 沈阳(056) · 宁波(068) · 佛山(065) · 厦门(066) · 大连(062) · 无锡(064) · 合肥(069) · 昆明(067) · 哈尔滨(057) · 济南(071) · 福州(079) · 温州(075) · 长春(074) · 石家庄(084) · 常州(080) · 泉州(082) · 南昌(083) · 贵阳(085) · 太原(086) · 烟台(090) · 南宁(087) · 珠海(077) · 金华(118) · 徐州(095) · 海口(089) · 乌鲁木齐(091) · 呼和浩特(097) · 兰州(099) · 中山(119) · 惠州(101) · 绍兴(103) · 嘉兴(102) · 西宁(116) · 银川(117) · 拉萨(115) ...
+Beijing(027) · Shanghai(034) · Shenzhen(014) · Guangzhou(053) · Chengdu(045) · Hangzhou(054) · Wuhan(063) · Nanjing(049) · Chongqing(076) · Xi'an(070) · Changsha(072) · Suzhou(050) · Tianjin(093) · Zhengzhou(073) · Dongguan(055) · Qingdao(060) · Shenyang(056) · Ningbo(068) · Foshan(065) · Xiamen(066) · Dalian(062) · Wuxi(064) · Hefei(069) · Kunming(067) · Harbin(057) · Jinan(071) · Fuzhou(079) · Wenzhou(075) · Changchun(074) · Shijiazhuang(084) · Changzhou(080) · Quanzhou(082) · Nanchang(083) · Guiyang(085) · Taiyuan(086) · Yantai(090) · Nanning(087) · Zhuhai(077) ...
 
-Run `node src/find.js --city 027 --kw "特"`  with your own city ID to check coverage.
+Run `node src/find.js --city 027 --kw "特"` with your own city ID to check coverage.
 
 ---
 
@@ -166,13 +173,13 @@ This project accesses [Chelaile](https://web.chelaile.net.cn) (车来了) public
 
 **Mechanism:**
 - Endpoint: `https://web.chelaile.net.cn/api/bus/...`
-- Auth: MD5 signing (`cryptoSign`) with salt `qwihrnbtmj` + AES-256-ECB decryption with fixed key
+- Auth: MD5 signing (`cryptoSign`) with salt + AES-256-ECB decryption with fixed key
 - Parameters mimic the Chelaile WeChat mini-program (`v: 3.11.28`, `src: weixinapp_cx`, etc.)
 - Response wrapped in `**YGKJ{...}YGKJ##` envelope; decryption layer transparently handled by `chelaile.js`
 
 **Ethics & risk:**
-- The upstream **Chelaile is a legitimate service providing free real-time bus data through its mini-program**. This project merely makes that data accessible programmatically with a map-based UI — it does not scrape, abuse, or monetise.
-- The interface is rate-limited by the 10 s server-side cache; the browser never hits Chelaile directly.
+- The upstream **Chelaile is a legitimate service providing free real-time bus data through its mini-program**. This project merely makes that data accessible programmatically — it does not scrape, abuse, or monetise.
+- The interface is rate-limited by the 10 s server-side cache; the browser never hits Chelaile directly.
 - **No warranty**: the upstream may change authentication at any time without notice. Built-in stale-data fallback keeps the page from going blank.
 
 ---
@@ -189,9 +196,8 @@ This project accesses [Chelaile](https://web.chelaile.net.cn) (车来了) public
 THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 
 The real-time bus data is sourced from a reverse-engineered third-party API.
-The upstream service (Chelaile / 车来了) may change, block, or rate-limit
-access at any time. The author is not responsible for any service disruption
-or data inaccuracy.
+The upstream service may change, block, or rate-limit access at any time.
+The author is not responsible for any service disruption or data inaccuracy.
 
 This project is for educational and personal use only. Do not use it in
 production environments where data reliability is critical.
@@ -200,3 +206,193 @@ If you are the operator of the upstream service and believe this project
 violates your terms of service, please open an issue — I will take it down
 immediately.
 ```
+
+---
+
+<a id="中文文档"></a>
+
+---
+
+# 🚌 Bus Live — 中文文档
+
+<p align="center">
+  <a href="#">English</a> · <b>中文</b>
+</p>
+
+## 📸 预览
+
+<p align="center">
+  <img src="screenshots/overview.jpg" alt="地图视角 — 实时公交位置" width="800">
+</p>
+
+<p align="center">
+  <img src="screenshots/vehicle-selected.jpg" alt="侧边栏 — 来车卡片" width="800">
+</p>
+
+---
+
+## ✨ 功能特性
+
+- **🧭 实时车辆位置** — 基于 Leaflet / OpenStreetMap 底图，公交车图标按 WGS-84 实时坐标绘制
+- **📏 剩余站数** — 每辆来车距离目标站还有几站，一目了然
+- **⏰ 预估到达** — 精确到分钟 + 预计时刻（如"3分钟 · 预计 21:14 到"）
+- **🚍 后方车辆列表** — 按到站时间排序，已过站车辆置灰标注
+- **🟢🟡🔴 拥挤程度** — 来源于运营商实时数据（畅通 / 适中 / 拥挤）
+- **🗺️ 线路轨迹** — 地图上绘制完整的公交线路走向
+- **🔧 零配置** — 内置演示线路，开箱即用
+- **🔐 无需注册、无需 API Key、无需账号** — 数据通过逆向工程获取公开公交数据
+- **📦 零依赖** — 纯 Node.js，无需 npm install
+- **📱 点击交互** — 点击车辆卡片或地图图标，自动飞到该车并弹出详情信息
+
+---
+
+## 架构
+
+```
+┌──────────────┐     GET /api/line              ┌──────────────────┐
+│  浏览器       │ ←─────────────────────          │  bus-live 服务端   │
+│  (Leaflet +  │     { line, stations, route,   │  (Node.js，无    │
+│   OSM)       │       buses[], fetchedAt }     │   第三方依赖)     │
+├──────────────┤                                 ├──────────────────┤
+│ 地图显示      │                                 │  /api/line (聚合) │
+│ 车辆图标      │                                 │  缓存 + 轮询      │
+│ 右侧面板      │                                 │  静态文件服务     │
+└──────────────┘                                 └────────┬─────────┘
+                                                           │
+                                         ┌─────────────────┼─────────────────┐
+                                         │ chelaile.js      │ find.js         │
+                                         │ (逆向车来了API)   │ (命令行搜索     │
+                                         │                  │  线路与站点)     │
+                                         └──────────────────┴─────────────────┘
+                                                           │
+                                            ┌──────────────┴──────────────┐
+                                            │  web.chelaile.net.cn API    │
+                                            │  (MD5签名 + AES-256-ECB解密) │
+                                            └─────────────────────────────┘
+```
+
+### 数据流
+
+1. **服务端启动** → 立即从上游拉取线路详情、实时车辆、线路轨迹，缓存在内存
+2. 每 **10 秒**服务端重新轮询上游（可配置）— 浏览器永远不直接访问上游
+3. **浏览器**每 **5 秒**轮询 `/api/line`，获取聚合后的 JSON，渲染地图和侧边栏
+4. 上游失败时，服务端返回**上次成功的数据** + `stale: true` 标记 — 不会白屏
+
+---
+
+## 快速开始
+
+### 环境要求
+
+- **Node.js >= 18**（已在 22、24 上测试）
+- 仅使用操作系统原生模块，无需 `npm install`
+
+### 运行演示
+
+```bash
+git clone https://github.com/Garfield-Wuu/bus-live.git
+cd bus-live
+node src/server.js
+```
+
+浏览器打开 **`http://localhost:8787`**，即可看到 **深圳 1 路 → 东湖人行天桥** 的实时公交数据。
+
+### 配置你自己的线路
+
+复制环境变量模板，填入你的线路信息：
+
+```bash
+cp .env.example .env
+# 编辑 .env，填入你的城市、线路、站点信息
+node src/server.js
+```
+
+或通过环境变量直接传入：
+
+```bash
+BUS_CITY_ID=014 \
+BUS_LINE_ID=0755-00010-0 \
+BUS_STOP_NAME=东湖人行天桥 \
+BUS_STOP_ORDER=4 \
+node src/server.js
+```
+
+### 查找线路 ID
+
+```bash
+# 按关键词搜索线路
+node src/find.js --city 014 --kw 1路
+
+# 加 --detail 可列出匹配线路的所有站点
+node src/find.js --city 014 --kw 1路 --detail
+```
+
+工具会输出 `.env` 所需的 `lineId`、`stopName`、`stopOrder`。
+
+---
+
+## 配置参考
+
+| 变量 | 说明 | 默认值 |
+|---|---|---|
+| `BUS_CITY_ID` | 车来了城市编码（如 `014` 深圳、`027` 北京、`034` 上海） | `014` |
+| `BUS_CITY_NAME` | 城市显示名 | `深圳` |
+| `BUS_LINE_ID` | 线路标识符（从搜索工具获取） | `0755-00010-0` |
+| `BUS_LINE_NO` | 线路显示名 | `1路` |
+| `BUS_STOP_NAME` | 候车站显示名 | `东湖人行天桥` |
+| `BUS_STOP_ORDER` | 候车站在线路上的序号（从 1 开始） | `4` |
+| `BUS_PORT` | HTTP 监听端口 | `8787` |
+| `BUS_UPSTREAM_MS` | 上游轮询间隔（毫秒） | `10000` |
+
+所有变量可通过 `.env` 文件（已在 `.gitignore` 中排除）、环境变量、或命令行参数（`--city=014`）设置。优先级：**命令行参数 > 环境变量 > .env 文件 > 默认值**。
+
+> 💡 用 `.env` 配置你关注的线路 — 它在 `.gitignore` 中，不会被提交。
+
+---
+
+## 支持城市
+
+上游（车来了）覆盖全国 **477+ 座城市**：
+
+北京(027) · 上海(034) · 深圳(014) · 广州(053) · 成都(045) · 杭州(054) · 武汉(063) · 南京(049) · 重庆(076) · 西安(070) · 长沙(072) · 苏州(050) · 天津(093) · 郑州(073) · 东莞(055) · 青岛(060) · 沈阳(056) · 宁波(068) · 佛山(065) · 厦门(066) · 大连(062) · 无锡(064) · 合肥(069) · 昆明(067) · 哈尔滨(057) · 济南(071) · 福州(079) · 温州(075) · 长春(074) · 石家庄(084) · 常州(080) · 泉州(082) · 南昌(083) · 贵阳(085) · 太原(086) · 烟台(090) · 南宁(087) · 珠海(077) ...
+
+用你的城市 ID 运行 `node src/find.js --city 027 --kw "特"` 检查具体覆盖情况。
+
+---
+
+## 技术原理 — 逆向工程说明
+
+本项目通过**逆向工程**访问 [车来了](https://web.chelaile.net.cn) 的实时公交数据 API。
+
+**实现机制：**
+- 端点：`https://web.chelaile.net.cn/api/bus/...`
+- 签名：MD5 签名（加盐）+ AES-256-ECB 解密（固定密钥）
+- 参数模拟车来了微信小程序（`v: 3.11.28`、`src: weixinapp_cx` 等）
+- 响应包裹在 `**YGKJ{...}YGKJ##` 信封中，`chelaile.js` 透明处理解密
+
+**伦理与风险：**
+- **车来了是正规的公共交通数据服务商**，通过小程序免费提供实时公交数据。本项目仅将该数据以编程方式呈现为地图界面 — 不进行爬取、滥用或商业化。
+- 10 秒服务端缓存实现速率限制 — 浏览器永远不会直接访问车来了。
+- **不保证可用性**：上游可能随时更改认证方式。内置的过期数据降级确保页面不会白屏。
+
+---
+
+## 免责声明
+
+```
+本软件按"原样"提供，不作任何明示或暗示的保证。
+
+实时公交数据来源于第三方 API 的逆向工程。上游服务（车来了）可能随时
+更改、封锁或限制访问。作者不对任何服务中断或数据不准确性负责。
+
+本项目仅供学习和个人使用。请勿在对数据可靠性要求较高的生产环境中使用。
+
+如果你是上游服务的运营方，认为本项目违反了你的服务条款，请提交 Issue —
+我会立即下架。
+```
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 [Garfield-Wuu](https://github.com/Garfield-Wuu)
