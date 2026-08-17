@@ -22,9 +22,10 @@
 
 | Map view with live bus positions | Side panel: incoming bus cards |
 |:---:|:---:|
-| ![Map view](screenshots/overview.png) | Bus cards show stops remaining, ETA, speed, and crowdedness badge |
+| ![Map view](screenshots/overview.png) | ![Side panel](screenshots/vehicle-selected.png) |
 
 > Built-in demo route (Shenzhen Line 1 → Donghu Pedestrian Bridge) runs immediately after `node src/server.js`.
+> Supports 477+ cities across China.
 
 ---
 
