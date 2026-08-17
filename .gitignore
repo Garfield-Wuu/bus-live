@@ -1,0 +1,13 @@
+# 依赖与缓存
+node_modules/
+*.log
+
+# 本地隐私配置（绝不提交 —— 含你的真实线路关注点）
+.env
+config.local.json
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

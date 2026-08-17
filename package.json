@@ -1,0 +1,27 @@
+{
+  "name": "bus-live",
+  "version": "0.1.0",
+  "description": "A self-hosted realtime bus tracker with a map-based UI (Gaode/AMap style). Reverse-engineered Chelaile data source. No dependencies.",
+  "type": "module",
+  "main": "src/server.js",
+  "bin": {
+    "bus-live": "src/server.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "find": "node src/find.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "bus",
+    "realtime-bus",
+    "transit",
+    "map",
+    "leaflet",
+    "chelaile",
+    "shanzhai-gaode"
+  ],
+  "license": "MIT"
+}
