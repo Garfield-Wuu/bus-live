@@ -20,11 +20,11 @@
 
 ## 📸 Preview
 
-| Vehicle positions on map | Incoming bus cards (side panel) |
+| Map view with live bus positions | Side panel: incoming bus cards |
 |:---:|:---:|
-| 🚌 Bus icons move over line polyline, colour-coded by crowdedness | 🎴 Per-bus: stops-to-arrive, ETA _min_, estimated clock time, speed, crowdedness badge |
+| ![Map view](screenshots/overview.png) | Bus cards show stops remaining, ETA, speed, and crowdedness badge |
 
-> **Screenshots coming** — built-in demo runs on demo data immediately after `node src/server.js`.
+> Built-in demo route (Shenzhen Line 1 → Donghu Pedestrian Bridge) runs immediately after `node src/server.js`.
 
 ---
 
