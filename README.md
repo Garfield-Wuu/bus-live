@@ -21,11 +21,11 @@
 ## 📸 Preview
 
 <p align="center">
-  <img src="screenshots/overview.png" alt="Map view with live bus positions" width="100%">
+  <img src="screenshots/overview.jpg" alt="Map view with live bus positions" width="800">
 </p>
 
 <p align="center">
-  <img src="screenshots/vehicle-selected.png" alt="Side panel with bus cards" width="100%">
+  <img src="screenshots/vehicle-selected.jpg" alt="Side panel with bus cards" width="800">
 </p>
 
 ---
