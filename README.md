@@ -20,12 +20,13 @@
 
 ## 📸 Preview
 
-| Map view with live bus positions | Side panel: incoming bus cards |
-|:---:|:---:|
-| ![Map view](screenshots/overview.png) | ![Side panel](screenshots/vehicle-selected.png) |
+<p align="center">
+  <img src="screenshots/overview.png" alt="Map view with live bus positions" width="100%">
+</p>
 
-> Built-in demo route (Shenzhen Line 1 → Donghu Pedestrian Bridge) runs immediately after `node src/server.js`.
-> Supports 477+ cities across China.
+<p align="center">
+  <img src="screenshots/vehicle-selected.png" alt="Side panel with bus cards" width="100%">
+</p>
 
 ---
 
