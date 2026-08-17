@@ -51,6 +51,42 @@
   .legend .item{display:flex; align-items:center; gap:6px; margin:3px 0;}
   .sw{width:12px; height:12px; border-radius:3px; display:inline-block;}
   h3.section{font-size:12px; color:var(--sub); letter-spacing:1px; padding:4px 4px 8px;}
+
+  /* 车辆地图图标 */
+  .bus-pin{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    width:40px; height:40px; border-radius:50%;
+    background:rgba(14,22,33,.9); border:2px solid #fff;
+    box-shadow:0 2px 8px rgba(0,0,0,.5);
+    cursor:pointer; transition:transform .15s, box-shadow .15s, border-color .15s;
+  }
+  .bus-pin:hover{transform:scale(1.12);}
+  .bus-pin .cap{
+    width:12px; height:12px; border-radius:50%; border:1.5px solid #fff;
+    position:absolute; top:-2px; right:-2px;
+  }
+  .bus-pin .stops{
+    font-size:11px; font-weight:700; color:#fff; line-height:1;
+    text-shadow:0 1px 1px rgba(0,0,0,.6);
+  }
+  .bus-pin .ic{font-size:18px; line-height:1;}
+  .bus-pin.sel{
+    transform:scale(1.3); z-index:1000 !important;
+    box-shadow:0 0 0 4px rgba(255,107,53,.5), 0 4px 14px rgba(0,0,0,.7);
+  }
+  .bus-pin.passed{opacity:.45; cursor:default;}
+  .bus-pin.passed:hover{transform:none;}
+
+  /* 车辆 popup 信息卡 */
+  .bus_pop .tt{font-weight:700; font-size:15px; margin-bottom:2px; color:#0e1621;}
+  .bus_pop .caprow{font-size:13px; margin:2px 0; color:#333;}
+  .bus_pop .row{display:flex; justify-content:space-between; font-size:12px; color:#555; margin-top:2px;}
+  .bus_pop .big{font-size:16px; font-weight:800; color:#ff6b35;}
+
+  /* 右侧卡片选中态 */
+  .card{cursor:pointer; transition:transform .12s, box-shadow .12s, background .12s;}
+  .card:hover{transform:translateX(4px); background:#22334a;}
+  .card.selected{border-left-color:#fff; box-shadow:0 0 0 2px rgba(255,107,53,.6); background:#25405c;}
 </style>
 </head>
 <body>
@@ -86,15 +122,19 @@
 <script>
 (() => {
   const POLL_MS = 5000;
-  // 初始视野是中国全图，首次数据到达后 fitBounds 到线路
+  // 初始视野是中国全图，首次数据到达后 fitBounds 到线路，之后用户自由缩放
   const map = L.map('map').setView([35, 105], 4);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, attribution: '&copy; OpenStreetMap',
   }).addTo(map);
 
-  // 图层
-  let lineLayer = null, stopLayer = null, busLayer = null;
-  let headerRendered = false;
+  // 图层：线路/站点改原地更新复用；车辆用 busMarkers 维护 map
+  let lineLayer = null;           // L.polyline（setLatLngs 原位更新）
+  let stopLayer = L.layerGroup().addTo(map);  // 站点 marker 组
+  let hasFit = false;             // 是否已做过首屏 fitBounds（fit 后永不主动动 view）
+  const stopMarkers = {};         // order -> L.marker（站点原地 update）
+  const busMarkers = {};          // busId -> { marker, selFlag }
+  let selectedBusId = null;       // 当前选中车辆
 
   // 页面头部：线路/站点信息由后端数据动态注入（不写死在 HTML）
   function updateHeader(d) {
@@ -117,65 +157,167 @@
   function capColor(c) { return c >= 2 ? '#e74c3c' : c === 1 ? '#f1c40f' : '#2ecc71'; }
   const capEmoji = { 0: '🟢', 1: '🟡', 2: '🔴', 3: '🔴' };
 
-  function busIcon(color) {
-    return L.divIcon({
-      className: '',
-      html: `<div style="font-size:22px; line-height:1; transform:translate(-1px,-2px); filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))">🚌</div>
-             <div style="width:10px;height:10px;border-radius:50%;background:${color};border:2px solid #fff;margin:2px auto 0;"></div>`,
-      iconSize: [24, 30], iconAnchor: [12, 28],
-    });
+  // 车辆地图图标：拥挤度色点 + 剩余站数徽章；选中态由 selectBus 切换 class
+  function busPinHtml(b, selected) {
+    const c = capColor(b.crowd);
+    const stops = (b.passed) ? '已过' : (b.stopsToArrive != null ? `${b.stopsToArrive}站` : '');
+    const cls = 'bus-pin' + (selected ? ' sel' : '') + (b.passed ? ' passed' : '');
+    return `<div class="${cls}">
+      <span class="cap" style="background:${c}"></span>
+      <span class="ic">🚌</span>
+      <span class="stops">${stops}</span>
+    </div>`;
+  }
+
+  // 车辆 popup 详情卡（点击车辆后展示）
+  function busPopupHtml(b) {
+    const eta = b.etaSec != null
+      ? `<span class="big">${b.etaMin} 分钟</span>`
+      : (b.distanceToWaitStn > 0 ? `<span class="big">约 ${(b.distanceToWaitStn / 1000).toFixed(1)} km</span>` : `<span class="big">即将进站</span>`);
+    const stopsTxt = b.stopsToArrive != null ? `${b.stopsToArrive} 站` : '—';
+    const etaTime = b.etaTime ? b.etaTime : '';
+    return `<div class="bus_pop">
+      <div class="tt">🚌 ${b.licence || b.busId}</div>
+      <div class="caprow">${capEmoji[b.crowd] ?? '⚪'} ${capLabel(b.crowd)} <span style="color:#999;font-size:11px">${capColor(b.crowd) === '#2ecc71' ? '· 比较宽松' : capColor(b.crowd) === '#f1c40f' ? '· 中等' : '· 有点挤'}</span></div>
+      <div class="row"><span>剩余站数</span><span><b>${stopsTxt}</b></span></div>
+      <div class="row"><span>到达时间</span><span>${eta} ${etaTime ? '<span style="color:#666">· ' + etaTime + ' 到</span>' : ''}</span></div>
+      <div class="row"><span>当前速度</span><span>${b.speed || 0} km/h</span></div>
+      <div class="row"><span>距候车站</span><span>${(b.distanceToWaitStn / 1000).toFixed(1)} km</span></div>
+      ${b.passed ? `<div class="row" style="color:#888"><span>状态</span><span>已驶过候车站</span></div>` : ''}
+    </div>`;
   }
 
   function renderMap(d) {
     const data = d || {};
-    // 线路轨迹
-    if (lineLayer) { map.removeLayer(lineLayer); lineLayer = null; }
+    // 线路轨迹：原地替换坐标，不重建（避免触发视图相关事件）
     if (data.route && data.route.length) {
-      lineLayer = L.polyline(data.route, { color: '#ff6b35', weight: 3, opacity: .65 }).addTo(map);
+      if (lineLayer) {
+        // 只更新坐标，不改 view；关闭 Leaflet 内部的 bounds 跟踪，避免被 fitBounds
+        lineLayer.setLatLngs(data.route);
+      } else {
+        lineLayer = L.polyline(data.route, { color: '#ff6b35', weight: 3, opacity: .65, updateBounds: false }).addTo(map);
+      }
+      // 首屏一次性 fit 到线路；fit 后绝不主动动用户 view
+      if (!hasFit) { map.fitBounds(lineLayer.getBounds(), { padding: [40, 40] }); hasFit = true; }
+    } else if (lineLayer) {
+      map.removeLayer(lineLayer); lineLayer = null;
     }
-    // 站点
-    if (stopLayer) { map.removeLayer(stopLayer); stopLayer = null; }
-    stopLayer = L.layerGroup().addTo(map);
+    // 站点：stopMarkers 原地更新坐标；只在首次/新增时建 marker
+    const seen = new Set();
     (data.stations || []).forEach((s) => {
+      seen.add(s.order);
       const isTgt = data.targetStop && s.order === data.targetStop.order;
-      const ic = L.divIcon({
-        className: '',
-        html: isTgt
-          ? `<div style="width:16px;height:16px;border-radius:50%;background:#ff6b35;border:3px solid #fff;box-shadow:0 0 0 3px rgba(255,107,53,.4)"></div>`
-          : `<div style="width:9px;height:9px;border-radius:50%;background:#6b8299;border:1.5px solid #fff"></div>`,
-        iconSize: isTgt ? [16, 16] : [9, 9], iconAnchor: isTgt ? [8, 8] : [4.5, 4.5],
-      });
-      L.marker([s.lat, s.lng], { icon: ic })
-        .bindTooltip(`${s.order}. ${s.sn}`, { direction: 'top', offset: isTgt ? [0, -8] : [0, -4] })
-        .addTo(stopLayer);
+      if (stopMarkers[s.order]) {
+        stopMarkers[s.order].setLatLng([s.lat, s.lng]);
+        const ic = stopMarkers[s.order].getIcon();
+        // 目标站可能与普通站图标不同，首次建好即可，此处不改 icon
+        void ic;
+      } else {
+        const ic = L.divIcon({
+          className: '',
+          html: isTgt
+            ? `<div style="width:16px;height:16px;border-radius:50%;background:#ff6b35;border:3px solid #fff;box-shadow:0 0 0 3px rgba(255,107,53,.4)"></div>`
+            : `<div style="width:9px;height:9px;border-radius:50%;background:#6b8299;border:1.5px solid #fff"></div>`,
+          iconSize: isTgt ? [16, 16] : [9, 9], iconAnchor: isTgt ? [8, 8] : [4.5, 4.5],
+        });
+        stopMarkers[s.order] = L.marker([s.lat, s.lng], { icon: ic })
+          .bindTooltip(`${s.order}. ${s.sn}`, { direction: 'top', offset: isTgt ? [0, -8] : [0, -4] })
+          .addTo(stopLayer);
+      }
     });
-    // 地图视野（仅首次数据到达时 fit，避免每次轮询打断用户缩放）
-    if (data.route && data.route.length && !headerRendered) {
-      map.fitBounds(L.polyline(data.route).getBounds(), { padding: [40, 40] });
-    }
-    if (!headerRendered) headerRendered = true;
+    // 清理不存在的站点
+    Object.keys(stopMarkers).forEach((o) => { if (!seen.has(Number(o))) { stopLayer.removeLayer(stopMarkers[o]); delete stopMarkers[o]; } });
   }
+
+  // ---------- 车辆双向联动 ----------
+  function selectBus(busId, opts = {}) {
+    // 再次点击已选 → 取消
+    if (selectedBusId === busId && !opts.force) {
+      selectedBusId = null;
+    } else {
+      selectedBusId = busId;
+    }
+    applySelection();
+    if (selectedBusId) {
+      const b = currentBuses[selectedBusId];
+      if (b && !opts.silent) {
+        // zoom 到车辆：如果用户当前缩放<14 则 flyTo 放大，否则保持但保证可见
+        const cur = map.getZoom();
+        map.flyTo([b.lat, b.lng], Math.max(cur, 15), { duration: .5 });
+      }
+    }
+  }
+
+  function applySelection() {
+    // 地图图标选中态
+    Object.entries(busMarkers).forEach(([id, m]) => {
+      const el = m.marker.getElement();
+      if (!el) return;
+      if (id === selectedBusId) el.classList.add('sel');
+      else el.classList.remove('sel');
+    });
+    // 右侧卡片选中态
+    document.querySelectorAll('.card').forEach((c) => {
+      c.classList.toggle('selected', c.dataset.busId === selectedBusId);
+    });
+  }
+
+  // 渲染公交列表 + 更新/创建 bus markers（原地增改删，不重建）
+  let currentBuses = {};  // busId -> bus
+  const lastBusesCache = new Map();
 
   function renderBuses(d) {
     const list = document.getElementById('busList');
     const data = d || {};
-    // 车辆图层
-    if (busLayer) { map.removeLayer(busLayer); busLayer = null; }
-    busLayer = L.layerGroup().addTo(map);
     const busArr = data.buses || [];
-    if (busArr.length) {
-      busArr.forEach((b) => {
-        L.marker([b.lat, b.lng], { icon: busIcon(capColor(b.crowd)) }).addTo(busLayer);
-      });
-    }
-    // 右侧面板
+    const incoming = new Set(busArr.map((b) => b.busId));
+    currentBuses = {};
+    busArr.forEach((b) => { currentBuses[b.busId] = b; });
+
+    // ---- 地图车辆 markers 原地更新 ----
+    // 移除消失的车
+    Object.keys(busMarkers).forEach((id) => {
+      if (!incoming.has(id)) {
+        map.removeLayer(busMarkers[id].marker);
+        delete busMarkers[id];
+      }
+    });
+    // 更新/新建
+    busArr.forEach((b) => {
+      const selected = selectedBusId === b.busId;
+      if (busMarkers[b.busId]) {
+        const m = busMarkers[b.busId].marker;
+        m.setLatLng([b.lat, b.lng]);
+        // 刷新图标（拥挤度/剩余站数可能变）
+        const wasSel = b.busId === selectedBusId;
+        m.setIcon(divIconBus(b, wasSel));
+      } else {
+        const mk = L.marker([b.lat, b.lng], {
+          icon: divIconBus(b, selected),
+          title: b.licence || b.busId,
+        });
+        mk.on('click', () => {
+          // 点击地图车辆图标 → 选中并弹详情
+          if (selectedBusId === b.busId) { selectedBusId = null; applySelection(); return; }
+          selectedBusId = b.busId;
+          applySelection();
+          mk.bindPopup(busPopupHtml(b), { className: 'bus_popup' }).openPopup();
+          const cur = map.getZoom();
+          map.flyTo([b.lat, b.lng], Math.max(cur, 15), { duration: .5 });
+        });
+        mk.addTo(map);
+        busMarkers[b.busId] = { marker: mk };
+      }
+    });
+
+    // ---- 右侧面板 ----
     if (!busArr.length) {
       list.innerHTML = `<div class="empty">当前线路上暂无运行中的车辆<br><span style="font-size:12px;color:var(--sub)">可能是末班已过或调度间隙，稍候自动刷新</span></div>`;
     } else {
       list.innerHTML = busArr.map((b) => {
-        // 已过站车辆
+        const sel = b.busId === selectedBusId ? ' selected' : '';
         if (b.passed) {
-          return `<div class="card" style="border-left-color:#56677b;opacity:.75">
+          return `<div class="card${sel}" data-bus-id="${b.busId}" style="border-left-color:#56677b;opacity:.75" onclick="window.__selBus('${b.busId}')">
             <div class="top">
               <span class="plate">🚌 ${b.licence || b.busId}</span>
               <span class="badge ${capClass(b.crowd)}">${capEmoji[b.crowd] ?? '⚪'} ${capLabel(b.crowd)}</span>
@@ -188,7 +330,7 @@
           : (b.distanceToWaitStn > 0 ? `约 ${(b.distanceToWaitStn / 1000).toFixed(1)} km` : '即将进站');
         const etaSub = b.etaTime ? `预计 ${b.etaTime}` : '';
         const stopsTxt = b.stopsToArrive != null ? `${b.stopsToArrive} 站` : '--';
-        return `<div class="card">
+        return `<div class="card${sel}" data-bus-id="${b.busId}" onclick="window.__selBus('${b.busId}')">
           <div class="top">
             <span class="plate">🚌 ${b.licence || b.busId}</span>
             <span class="badge ${capClass(b.crowd)}">${capEmoji[b.crowd] ?? '⚪'} ${capLabel(b.crowd)}</span>
@@ -202,6 +344,7 @@
         </div>`;
       }).join('');
     }
+
     // 底部状态
     const dot = document.getElementById('statusDot');
     const txt = document.getElementById('statusTxt');
@@ -213,21 +356,36 @@
       : '';
   }
 
-  async function poll() {
+  // divIcon：车辆图标（含拥挤色点 + 剩余站数徽章），selected 时加 sel 类
+  function divIconBus(b, selected) {
+    return L.divIcon({
+      className: '',
+      html: busPinHtml(b, selected),
+      iconSize: [0, 0],   // div 自适应，不裁剪
+      iconAnchor: [20, 20],
+      popupAnchor: [0, -20],
+    });
+  }
+
+  async function poll2() {
     try {
       const r = await fetch('/api/line', { cache: 'no-store' });
       const d = await r.json();
       updateHeader(d);
       renderMap(d);
       renderBuses(d);
+      if (selectedBusId) applySelection();
     } catch (e) {
       document.getElementById('statusDot').className = 'dot stale';
       document.getElementById('statusTxt').textContent = '后端连接失败';
     }
   }
 
-  poll();
-  setInterval(poll, POLL_MS);
+  // 供卡片 onclick 使用（window 作用域）
+  window.__selBus = (id) => selectBus(id);
+
+  poll2();
+  setInterval(poll2, POLL_MS);
 })();
 </script>
 </body>
